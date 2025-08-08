@@ -1,5 +1,5 @@
 # Extract port value from tnsping output
-port_value=$(tnsping "$db_name" 2>/dev/null | grep -oP 'PORT\s*=\s*\K[0-9]+' | head -1)
+port_value=$(tnsping "$db_name" 2>/dev/null | awk -F'PORT *= *' '/PORT *=/{print $2}' | cut -d')' -f1 | head -1)
 
 if [[ -z "$port_value" ]]; then
   echo "$(timestamp) | ERROR | Could not extract PORT value from tnsping output." | tee -a "$LOG_FILE"
@@ -11,6 +11,3 @@ if [[ "$port_value" == "1521" ]]; then
 else
   echo "$(timestamp) | STATUS | PASS | Port is $port_value (non-default)" | tee -a "$LOG_FILE"
 fi
-
-
-tnsping DUKG0588 | awk -F'PORT *= *' '/PORT *=/{print $2}' | cut -d')' -f1 | head -1
