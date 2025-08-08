@@ -11,3 +11,6 @@ if [[ "$port_value" == "1521" ]]; then
 else
   echo "$(timestamp) | STATUS | PASS | Port is $port_value (non-default)" | tee -a "$LOG_FILE"
 fi
+
+
+tnsping DUKG0588 | awk -F'PORT *= *' '/PORT *=/{print $2}' | cut -d')' -f1 | head -1
