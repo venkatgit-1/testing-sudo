@@ -1,5 +1,5 @@
 # Extract port value from tnsping output
-port_value=$(tnsping "$db_name" 2>/dev/null | grep -oP 'PORT\s*=\s*\K[0-9]+')
+port_value=$(tnsping "$db_name" 2>/dev/null | grep -oP 'PORT\s*=\s*\K[0-9]+' | head -1)
 
 if [[ -z "$port_value" ]]; then
   echo "$(timestamp) | ERROR | Could not extract PORT value from tnsping output." | tee -a "$LOG_FILE"
