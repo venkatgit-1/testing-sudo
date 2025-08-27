@@ -1,0 +1,1 @@
+port_value=$(echo "$tns_out" | grep -oP '(\bPORT\s*[:=]*\s*\d+|\bport\s*[:=]*\s*\d+|\bPort\s*[:=]*\s*\d+)' | grep -oP '\d+' | head -1)
