@@ -1,9 +1,17 @@
+
 ORACLE_HOME="$(
   awk -F: -v DB="$db_name" -v SID="$ORACLE_SID" '
     $0 !~ /^[#[:space:]]*$/ {
-      if ($1 == DB || $1 == SID) {
-        print $2; exit
-      }
+      if ($1 == SID) { print $2; exit }
+      if ($1 == DB)  { last=$2 }
+    }
+    END {
+      if (last != "") print last
     }
   ' "$ORATAB"
 )"
+
+if [[ -z "${ORACLE_HOME}" ]]; then
+  echo "$(timestamp) | ERROR | Could not find ORACLE_HOME for SID=${ORACLE_SID} or DB=${db_name} in ${ORATAB}" | tee -a "$LOG_FILE"
+  exit 2
+fi
