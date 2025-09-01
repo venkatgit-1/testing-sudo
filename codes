@@ -1,0 +1,9 @@
+ORACLE_HOME="$(
+  awk -F: -v DB="$db_name" -v SID="$ORACLE_SID" '
+    $0 !~ /^[#[:space:]]*$/ {
+      if ($1 == DB || $1 == SID) {
+        print $2; exit
+      }
+    }
+  ' "$ORATAB"
+)"
