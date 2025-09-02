@@ -1,0 +1,51 @@
+You are an expert Azure DevOps YAML pipeline author. I will give you an existing pipeline YAML (attached separately) that shows how we connect to Azure, and you must produce a new pipeline YAML that implements automated client-secret rotation for a specific Azure AD App Registration. Follow these requirements precisely and ask clarifying questions only if something is ambiguous.
+
+Goal
+- Create an Azure DevOps YAML pipeline that runs twice weekly and rotates an App Registration client secret when the current secret will expire within 30 days.
+- The pipeline must:
+  - Connect to Azure using the same connection approach and patterns used in the attached YAML (use it as the reference for az login / service connection and subscription context).
+  - Use the provided service account credentials (the service account is owner of the target App Registration).
+  - Check the existing client secret(s) for the given App Registration and determine if any secret's expiry date is within 30 days from pipeline run date.
+  - If expiry is within 30 days, create a new client secret for that App Registration, store the new secret securely in an Azure DevOps variable group or pipeline secret (explain where you store it), and optionally notify (print masked or log non-secret metadata).
+  - Ensure the pipeline is idempotent and safe to re-run.
+  - Include appropriate error handling, logging, and least-privilege actions.
+  - Use Azure CLI / Microsoft Graph (choose one consistent approach) and show exact commands/scripts to list credentials, parse expiry dates, compare to today's date, and create a new credential with an expiry (e.g., 1 year by default — make the expiry configurable).
+  - Do not hardcode sensitive values in the YAML; read them from pipeline variables or secret variables. Show where the variables come from and example variable names/format.
+
+Inputs you must accept in the YAML (as pipeline variables)
+- ServiceAccountUserName: example format "_svc.Gbl.AzrDevOps.AppSecret.Rotator@Worley.com"
+- ServiceAccountKey: secret/password (mark secret)
+- ServiceConnectionName: name of the Azure DevOps service connection (if used)
+- AppRegistrationId: GUID of the app registration (example: d094a8ed-8084-4391-8e9c-35cac7822514)
+- SecretExpiryThresholdDays: default 30
+- NewSecretLifetimeDays: default 365 (or configurable)
+- StorageTarget: where to store the rotated secret (e.g., Azure DevOps variable group name or Key Vault name)
+- Notification settings (optional): e.g., email or Teams webhook (optional)
+
+Technical expectations and guidelines
+- Use the same Azure-authentication pattern as in the attached YAML. If that YAML uses a service connection and an 'az login --service-principal -u ... -p ... -t ...' step, use an identical approach but substitute the pipeline variables for credentials and tenant.
+- Prefer Microsoft Graph PowerShell or Azure CLI v2.0+ commands to list app credentials and create new ones. If using az cli, prefer 'az ad app credential list' and 'az ad app credential reset' or the Microsoft Graph equivalent; show the exact commands and required parameters.
+- Show how to parse credential expiry timestamps and compute the day delta (use jq, PowerShell, or other inline scripting depending on chosen agent).
+- Secure handling: mark the ServiceAccountKey as a secret pipeline variable; mask output of the newly created secret in logs; advise how to store the new secret (save to Azure DevOps variable group as secret or write to Azure Key Vault).
+- Scheduling: include a schedule trigger that runs two times per week (specify days, e.g., Mon and Thu) and also allow manual runs.
+- RBAC: clearly state that the service account must be Owner of the App Registration; use the provided AppRegistrationId.
+- Idempotency: if a new secret has already been created within the same threshold window, avoid creating duplicate secrets; instead, report the existing recent secret and its expiry.
+- Outputs: pipeline should output (non-sensitive) the created secret name/identifier and its expiry date. Do not output the secret value in plain logs; when storing the secret in a variable group or Key Vault, print only where it was stored.
+
+Deliverables (what I expect you to return)
+- A ready-to-use Azure DevOps YAML pipeline file that implements the above, including:
+  - variables block with example values and clear instructions which ones must be marked secret
+  - trigger and schedule settings (two weekly runs + manual)
+  - steps that authenticate to Azure using the same method as the attached YAML (take that as canonical)
+  - script steps (bash or PowerShell) that:
+    - list the app registration secrets and their expiries
+    - compute days until expiry
+    - decide whether to rotate (threshold logic)
+    - create a new client secret if needed
+    - store the secret securely (show example commands for saving to variable group or Key Vault)
+    - mask/maskable logging to avoid leaking secret value
+  - comments in the YAML explaining important parts and how to change the threshold, schedule, and storage method
+- A concise checklist of prerequisites required in Azure and Azure DevOps (service principal permission/owner role on the App Registration, service connection created, variable group or Key Vault access, agent pool requirements).
+- If you made any assumptions beyond the provided details, list them explicitly.
+
+If anything in my description is ambiguous or you need access to the attached YAML to follow its authentication pattern precisely, ask me now for the attached YAML or any missing information.
