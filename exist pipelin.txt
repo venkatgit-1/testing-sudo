@@ -1,0 +1,180 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+  branches:
+    include:
+      - UAT
+    exclude:
+      - azure-pipelines-uat.yml
+
+# YAML file for cron job
+schedules:
+  - cron: '30 18 * * 6'
+    displayName: Every Sunday midnight build
+    branches:
+      include:
+        - uat
+    always: true
+  - cron: '30 18 * * 2'
+    displayName: Every Wednesday midnight build
+    branches:
+      include:
+        - uat
+    always: true
+
+pool: 
+  name: 'container'
+
+resources:
+  repositories:
+    - repository: test-templates
+      type: git
+      name: "DevOps Resources/devops-templates"
+      ref: 2.0
+    - repository: self
+
+variables:
+  resourceGroup: 'Auto NPIS - AzureRM (SGSIN01-ARG-395-Auto_NPIS-uat) - UAT'
+  imageRepository: 'npis_gbs_uat/$(Build.Repository.Name)'
+  containerRegistry: 'sgsin01acr01.azurecr.io'
+  dockerfilePath: 'Dockerfile'
+  tag: '$(Build.BuildId)'
+  repoName: $(Build.Repository.Name)
+
+stages:
+  - stage: Build
+    displayName: Build and push stage
+    jobs:
+      - job: Build
+        displayName: Build
+        steps:
+          - task: CmdLine@2
+            inputs:
+              script: 'curl https://devops-sonarqube.worley.com'
+          
+          - task: CmdLine@2
+            inputs:
+              script: |
+                mkdir manifests
+                cd manifests
+                echo > credentials.txt
+                cat > credentials.txt << EOF
+                NpisAPIBaseUrl=#{NpisAPIBaseUrl}#
+                NpisAuthApiBaseUrl=#{NpisAuthApiBaseUrl}#
+                NpisNotificationApiBaseUrl=#{NpisNotificationApiBaseUrl}#
+                NpisBaseUrl=#{NpisBaseUrl}#
+                GbsAPIUrl=#{GbsAPIUrl}#
+                npis-support-mailbox=#{npis-support-mailbox}#
+                DataBaseConnectionStringwebapi=#{DataBaseConnectionStringwebapi}#
+                appinsight-connectionstring=#{appinsight-connectionstring}#
+                GbsAuthorization=#{GbsAuthorization}#
+                defaultscopeurl=#{defaultscopeurl}#
+                clientSecret=#{clientSecret}#
+                tenantId=#{tenantId}#
+                clientId=#{clientId}#
+                APPLICATIONINSIGHTS-AUTHENTICATION-STRING=#{APPLICATIONINSIGHTS-AUTHENTICATION-STRING}#
+                EOF
+                echo > cronjob.yml
+                cat > cronjob.yml <<EOF
+                apiVersion: batch/v1
+                kind: CronJob
+                metadata:
+                  name: $(repoName)
+                spec:
+                  schedule: "*/5 * * * *"
+                  jobTemplate:
+                    spec:
+                      template:
+                        spec:
+                          containers:
+                            - name: $(repoName)
+                              image: $(containerRegistry)/$(imageRepository):$(tag)
+                              env:
+                                - name: DataBaseConnectionStringwebapi
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: DataBaseConnectionStringwebapi
+                                - name: NpisAPIBaseUrl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: NpisAPIBaseUrl
+                                - name: NpisBaseUrl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: NpisBaseUrl
+                                - name: GbsAPIUrl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: GbsAPIUrl
+                                - name: npis-support-mailbox
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: npis-support-mailbox
+                                - name: GbsAuthorization
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: GbsAuthorization
+                                - name: defaultscopeurl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: defaultscopeurl
+                                - name: clientSecret
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: clientSecret
+                                - name: tenantId
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: tenantId
+                                - name: clientId
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: clientId
+                                - name: APPLICATIONINSIGHTS-AUTHENTICATION-STRING
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: APPLICATIONINSIGHTS-AUTHENTICATION-STRING
+                                - name: NpisNotificationApiBaseUrl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: NpisNotificationApiBaseUrl
+                                - name: NpisAuthApiBaseUrl
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: NpisAuthApiBaseUrl
+                                - name: appinsight-connectionstring
+                                  valueFrom:
+                                    secretKeyRef:
+                                      name: credentials-npisuat
+                                      key: appinsight-connectionstring
+                          restartPolicy: Never
+                EOF
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(Pipeline.Workspace)'
+              artifact: '$(repoName)'
+              publishLocation: 'pipeline'
+
+          - template: BuildAndPushTrivy-nonEnforced.yml@test-templates
+            parameters:
+              subscription: $(resourceGroup)
+              imageRepository: $(imageRepository)
+              tag: $(tag)
+              containerRegistry: $(containerRegistry)
+              dockerfilePath: $(dockerfilePath)
