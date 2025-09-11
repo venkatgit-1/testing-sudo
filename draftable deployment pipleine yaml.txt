@@ -1,0 +1,169 @@
+trigger:
+  branches:
+    include:
+      - development
+
+pool:
+  name: 'Default'
+  demands:
+    - agent.os -equals Linux
+
+variables:
+  resourceGroup: 'DevOps Resources - AzureRM (SGSIN01-ARG-395-Digital-infra-dev) - DEV'
+  kubernetesServiceEndpoint: 'DevOps Resources - Kubernetes namespace devops-test (SGSIN01KUB01) - DEV'
+  containerRegistry: 'sgsin01acr01.azurecr.io'
+  tag: '$(Build.BuildId)'
+  k8sNamespace: 'default'
+  draftableRepository: 'draftable/apish'
+
+stages:
+- stage: BuildAndPush
+  displayName: Build & Push Draftable Image
+  jobs:
+  - job: BuildJob
+    displayName: Build and Push Image
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Login to ACR'
+      inputs:
+        azureSubscription: $(resourceGroup)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          ACR_NAME="$(echo $(containerRegistry) | cut -d. -f1)"
+          az acr login -n "$ACR_NAME"
+
+    - script: |
+        set -euo pipefail
+        echo "Pulling Draftable apish image..."
+        docker pull draftable/apish:latest
+        docker tag draftable/apish:latest $(containerRegistry)/$(draftableRepository):$(tag)
+        docker tag draftable/apish:latest $(containerRegistry)/$(draftableRepository):latest
+        docker push $(containerRegistry)/$(draftableRepository):$(tag)
+        docker push $(containerRegistry)/$(draftableRepository):latest
+      displayName: 'Build & Push Draftable Image'
+
+    - script: |
+        set -euo pipefail
+        mkdir -p manifests
+        cd manifests
+
+        # --- New PVC for Draftable data ---
+        cat > apish-pvc.yaml <<'EOF'
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: draftable-data
+          namespace: default
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+        EOF
+
+        # --- Draftable Deployment with PVC ---
+        cat > apish-deployment.yaml <<'EOF'
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: apish
+          namespace: default
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: apish
+          template:
+            metadata:
+              labels:
+                app: apish
+            spec:
+              containers:
+              - name: apish
+                image: sgsin01acr01.azurecr.io/draftable/apish:latest
+                ports:
+                  - containerPort: 80
+                resources:
+                  requests:
+                    memory: "1Gi"
+                    cpu: "1"
+                  limits:
+                    memory: "2Gi"
+                    cpu: "2"
+                volumeMounts:
+                  - name: draftable-data
+                    mountPath: /srv/draftable
+              volumes:
+              - name: draftable-data
+                persistentVolumeClaim:
+                  claimName: draftable-data
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: apish
+          namespace: default
+        spec:
+          type: ClusterIP
+          ports:
+            - name: http
+              port: 80
+              targetPort: 80
+          selector:
+            app: apish
+        EOF
+      displayName: 'Generate Draftable Manifests'
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Pipeline.Workspace)'
+        artifact: 'draftable-manifests'
+        publishLocation: 'pipeline'
+
+- stage: DeployToAKS
+  displayName: Deploy Draftable to AKS
+  dependsOn: BuildAndPush
+  jobs:
+  - deployment: Deploy
+    environment: 'aks-prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: draftable-manifests
+
+          # Apply PVC first
+          - task: Kubernetes@1
+            displayName: 'Apply Draftable PVC'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+              namespace: $(k8sNamespace)
+              command: apply
+              useConfigurationFile: true
+              configuration: '$(Pipeline.Workspace)/s/manifests/apish-pvc.yaml'
+
+          # Apply Deployment + Service
+          - task: Kubernetes@1
+            displayName: 'Apply Draftable Deployment & Service'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+              namespace: $(k8sNamespace)
+              command: apply
+              useConfigurationFile: true
+              configuration: '$(Pipeline.Workspace)/s/manifests/apish-deployment.yaml'
+
+          # Wait for rollout
+          - task: Kubernetes@1
+            displayName: 'Wait for Draftable rollout'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+              namespace: $(k8sNamespace)
+              command: rollout
+              arguments: 'status deploy/apish'

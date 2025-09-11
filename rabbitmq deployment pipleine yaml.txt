@@ -1,0 +1,404 @@
+trigger:
+  branches:
+    include:
+      - development
+
+pool:
+  name: 'Default'
+  demands:
+    - agent.os -equals Linux
+
+variables:
+  resourceGroup: 'DevOps Resources - AzureRM (SGSIN01-ARG-395-Digital-infra-dev) - DEV'
+  kubernetesServiceEndpoint: 'DevOps Resources - Kubernetes namespace devops-test (SGSIN01KUB01) - DEV'
+
+  containerRegistry: 'sgsin01acr01.azurecr.io'
+  tag: '$(Build.BuildId)'
+  k8sNamespace: 'default'
+
+  rabbitRepository: 'thirdparty/rabbitmq-management'
+  rabbitUser: 'draftable'
+  rabbitPass: 'Admin123456'
+  rabbitVhost: '/'
+  rabbitExchange: 'draftable.compare-api'
+  rabbitStorageGi: '5Gi'
+
+stages:
+
+# -----------------------------------------------------------
+# Stage 1: Mirror RabbitMQ to ACR + render manifests
+# -----------------------------------------------------------
+- stage: BuildAndPush
+  displayName: Mirror RabbitMQ → ACR + Manifests
+  jobs:
+  - job: BuildJob
+    displayName: Build/Push to ACR & Render Manifests
+    steps:
+
+    - task: AzureCLI@2
+      displayName: 'Login to ACR'
+      inputs:
+        azureSubscription: $(resourceGroup)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          ACR_NAME="$(echo $(containerRegistry) | cut -d. -f1)"
+          az acr login -n "$ACR_NAME"
+
+    - script: |
+        set -euo pipefail
+        docker pull rabbitmq:3.13-management
+        docker tag rabbitmq:3.13-management $(containerRegistry)/$(rabbitRepository):$(tag)
+        docker tag rabbitmq:3.13-management $(containerRegistry)/$(rabbitRepository):latest
+        docker push $(containerRegistry)/$(rabbitRepository):$(tag)
+        docker push $(containerRegistry)/$(rabbitRepository):latest
+      displayName: 'Mirror RabbitMQ → ACR'
+
+    - script: |
+        set -euo pipefail
+        mkdir -p manifests
+        cd manifests
+
+        # Secret with RabbitMQ credentials
+        cat > rabbitmq-secret.yaml <<'EOF'
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: rabbitmq-credentials
+          namespace: default
+        type: Opaque
+        stringData:
+          username: "draftable"
+          password: "Admin123456"
+        EOF
+
+        # ConfigMap with definitions
+        cat > rabbitmq-configmap.yaml <<'EOF'
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: rabbitmq-definitions
+          namespace: default
+        data:
+          definitions.json: |
+            {
+              "vhosts": [ { "name": "/" } ],
+              "users": [
+                { "name": "draftable", "password": "Admin123456", "tags": "administrator" }
+              ],
+              "permissions": [
+                { "user": "draftable", "vhost": "/", "configure": ".*", "write": ".*", "read": ".*" }
+              ],
+              "exchanges": [
+                {
+                  "name": "draftable.compare-api",
+                  "vhost": "/",
+                  "type": "topic",
+                  "durable": true,
+                  "auto_delete": false,
+                  "internal": false,
+                  "arguments": {
+                    "alternate-exchange": "draftable.compare-api.ae"
+                  }
+                },
+                {
+                  "name": "draftable.compare-api.ae",
+                  "vhost": "/",
+                  "type": "fanout",
+                  "durable": true,
+                  "auto_delete": false,
+                  "internal": false,
+                  "arguments": {}
+                },
+                {
+                  "name": "draftable.compare-api.dlx",
+                  "vhost": "/",
+                  "type": "fanout",
+                  "durable": true,
+                  "auto_delete": false,
+                  "internal": false,
+                  "arguments": {}
+                }
+              ],
+              "queues": [
+                {
+                  "name": "draftable.compare-api.work",
+                  "vhost": "/",
+                  "durable": true,
+                  "auto_delete": false,
+                  "arguments": {
+                    "x-dead-letter-exchange": "draftable.compare-api.dlx"
+                  }
+                },
+                {
+                  "name": "draftable.compare-api.unroutable",
+                  "vhost": "/",
+                  "durable": true,
+                  "auto_delete": false,
+                  "arguments": {}
+                }
+              ],
+              "bindings": [
+                {
+                  "source": "draftable.compare-api",
+                  "vhost": "/",
+                  "destination": "draftable.compare-api.work",
+                  "destination_type": "queue",
+                  "routing_key": "#",
+                  "arguments": {}
+                },
+                {
+                  "source": "draftable.compare-api.ae",
+                  "vhost": "/",
+                  "destination": "draftable.compare-api.unroutable",
+                  "destination_type": "queue",
+                  "routing_key": "",
+                  "arguments": {}
+                }
+              ]
+            }
+        EOF
+
+        # rabbitmq.conf so definitions load on boot
+        cat > rabbitmq-conf.yaml <<'EOF'
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: rabbitmq-config
+          namespace: default
+        data:
+          rabbitmq.conf: |
+            management.load_definitions = /etc/rabbitmq/definitions.json
+        EOF
+
+        # PVC for RabbitMQ data
+        cat > rabbitmq-pvc.yaml <<'EOF'
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: rabbitmq-data
+          namespace: default
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+        EOF
+
+        # RabbitMQ Deployment + Service
+        cat > rabbitmq-deploy-svc.yaml <<EOF
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: rabbitmq
+          namespace: $(k8sNamespace)
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: rabbitmq
+          template:
+            metadata:
+              labels:
+                app: rabbitmq
+            spec:
+              containers:
+                - name: rabbitmq
+                  image: $(containerRegistry)/$(rabbitRepository):$(tag)
+                  ports:
+                    - name: amqp
+                      containerPort: 5672
+                    - name: http
+                      containerPort: 15672
+                  env:
+                    - name: RABBITMQ_DEFAULT_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: rabbitmq-credentials
+                          key: username
+                    - name: RABBITMQ_DEFAULT_PASS
+                      valueFrom:
+                        secretKeyRef:
+                          name: rabbitmq-credentials
+                          key: password
+                    - name: RABBITMQ_DEFAULT_VHOST
+                      value: "$(rabbitVhost)"
+                    - name: RABBITMQ_LOAD_DEFINITIONS
+                      value: "/etc/rabbitmq/definitions.json"
+                  readinessProbe:
+                    tcpSocket: { port: 5672 }
+                    initialDelaySeconds: 5
+                    periodSeconds: 5
+                  livenessProbe:
+                    tcpSocket: { port: 5672 }
+                    initialDelaySeconds: 20
+                    periodSeconds: 10
+                  volumeMounts:
+                    - name: data
+                      mountPath: /var/lib/rabbitmq
+                    - name: defs
+                      mountPath: /etc/rabbitmq/definitions.json
+                      subPath: definitions.json
+                    - name: rmq-conf
+                      mountPath: /etc/rabbitmq/rabbitmq.conf
+                      subPath: rabbitmq.conf
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: rabbitmq-data
+                - name: defs
+                  configMap:
+                    name: rabbitmq-definitions
+                - name: rmq-conf
+                  configMap:
+                    name: rabbitmq-config
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: rabbitmq
+          namespace: $(k8sNamespace)
+        spec:
+          selector:
+            app: rabbitmq
+          ports:
+            - name: amqp
+              port: 5672
+              targetPort: 5672
+            - name: http
+              port: 15672
+              targetPort: 15672
+        EOF
+      displayName: 'Generate Kubernetes YAML files'
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: '$(Pipeline.Workspace)'
+        artifact: 'rabbitmq-only-manifests'
+        publishLocation: 'pipeline'
+
+# ------------------------------------------------
+# Stage 2: Apply manifests + wire apish env vars
+# ------------------------------------------------
+- stage: DeployToAKS
+  displayName: Deploy RabbitMQ + wire apish to RMQ
+  dependsOn: BuildAndPush
+  jobs:
+  - deployment: Deploy
+    environment: 'aks-prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - download: current
+              artifact: rabbitmq-only-manifests
+
+            # Apply files one-by-one (stable paths)
+            - task: Kubernetes@1
+              displayName: 'Apply Secret'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: apply
+                useConfigurationFile: true
+                configuration: '$(Pipeline.Workspace)/s/manifests/rabbitmq-secret.yaml'
+
+            - task: Kubernetes@1
+              displayName: 'Apply ConfigMap (definitions)'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: apply
+                useConfigurationFile: true
+                configuration: '$(Pipeline.Workspace)/s/manifests/rabbitmq-configmap.yaml'
+
+            - task: Kubernetes@1
+              displayName: 'Apply ConfigMap (rabbitmq.conf)'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: apply
+                useConfigurationFile: true
+                configuration: '$(Pipeline.Workspace)/s/manifests/rabbitmq-conf.yaml'
+
+            - task: Kubernetes@1
+              displayName: 'Apply PVC'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: apply
+                useConfigurationFile: true
+                configuration: '$(Pipeline.Workspace)/s/manifests/rabbitmq-pvc.yaml'
+
+            - task: Kubernetes@1
+              displayName: 'Apply RabbitMQ (Deployment + Service)'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: apply
+                useConfigurationFile: true
+                configuration: '$(Pipeline.Workspace)/s/manifests/rabbitmq-deploy-svc.yaml'
+
+            # Wait for RabbitMQ rollout
+            - task: Kubernetes@1
+              displayName: 'Wait for RabbitMQ rollout'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: rollout
+                arguments: 'status deploy/rabbitmq'
+
+            # Set apish env vars (basic)
+            - task: Kubernetes@1
+              displayName: 'Set apish RabbitMQ env vars (host/port/vhost/exchange)'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: set
+                arguments: >
+                  env deployment/apish
+                  RABBITMQ_HOST=rabbitmq
+                  RABBITMQ_PORT=5672
+                  RABBITMQ_VHOST=$(rabbitVhost)
+                  RABBITMQ_EXCHANGE=$(rabbitExchange)
+
+            # Set apish user/pass as literals (avoids JSON patch quoting issues)
+            - task: Kubernetes@1
+              displayName: 'Set apish RabbitMQ env vars (user/password)'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: set
+                arguments: >
+                  env deployment/apish
+                  RABBITMQ_USER=$(rabbitUser)
+                  RABBITMQ_PASSWORD=$(rabbitPass)
+
+            # Restart + wait
+            - task: Kubernetes@1
+              displayName: 'Restart apish'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: rollout
+                arguments: 'restart deployment/apish'
+
+            - task: Kubernetes@1
+              displayName: 'Wait for apish rollout'
+              inputs:
+                connectionType: 'Kubernetes Service Connection'
+                kubernetesServiceEndpoint: $(kubernetesServiceEndpoint)
+                namespace: $(k8sNamespace)
+                command: rollout
+                arguments: 'status deployment/apish'
