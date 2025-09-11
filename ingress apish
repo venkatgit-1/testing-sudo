@@ -1,0 +1,67 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: apish-ingress
+  namespace: default
+  uid: 6e028e95-7073-4cbe-b527-f9402c50481d
+  resourceVersion: '758258360'
+  generation: 1
+  creationTimestamp: '2025-07-28T12:13:32Z'
+  annotations:
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: draftable_dev_worley
+    appgw.ingress.kubernetes.io/backend-port: '80'
+    appgw.ingress.kubernetes.io/backend-protocol: http
+    appgw.ingress.kubernetes.io/health-probe-path: /
+    appgw.ingress.kubernetes.io/request-timeout: '300'
+    appgw.ingress.kubernetes.io/ssl-redirect: 'true'
+    appgw.ingress.kubernetes.io/use-private-ip: 'true'
+    kubectl.kubernetes.io/last-applied-configuration: >
+      {"apiVersion":"networking.k8s.io/v1","kind":"Ingress","metadata":{"annotations":{"appgw.ingress.kubernetes.io/appgw-ssl-certificate":"draftable_dev_worley","appgw.ingress.kubernetes.io/backend-port":"80","appgw.ingress.kubernetes.io/backend-protocol":"http","appgw.ingress.kubernetes.io/health-probe-path":"/","appgw.ingress.kubernetes.io/request-timeout":"300","appgw.ingress.kubernetes.io/ssl-redirect":"true","appgw.ingress.kubernetes.io/use-private-ip":"true","kubernetes.io/ingress.class":"azure/application-gateway-private2"},"name":"apish-ingress","namespace":"default"},"spec":{"rules":[{"host":"draftable-test.worley.com","http":{"paths":[{"backend":{"service":{"name":"apish","port":{"number":80}}},"path":"/","pathType":"Prefix"}]}}]}}
+    kubernetes.io/ingress.class: azure/application-gateway-private2
+  managedFields:
+    - manager: kubectl-client-side-apply
+      operation: Update
+      apiVersion: networking.k8s.io/v1
+      time: '2025-07-28T12:13:32Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:appgw.ingress.kubernetes.io/appgw-ssl-certificate: {}
+            f:appgw.ingress.kubernetes.io/backend-port: {}
+            f:appgw.ingress.kubernetes.io/backend-protocol: {}
+            f:appgw.ingress.kubernetes.io/health-probe-path: {}
+            f:appgw.ingress.kubernetes.io/request-timeout: {}
+            f:appgw.ingress.kubernetes.io/ssl-redirect: {}
+            f:appgw.ingress.kubernetes.io/use-private-ip: {}
+            f:kubectl.kubernetes.io/last-applied-configuration: {}
+            f:kubernetes.io/ingress.class: {}
+        f:spec:
+          f:rules: {}
+    - manager: appgw-ingress
+      operation: Update
+      apiVersion: networking.k8s.io/v1
+      time: '2025-07-28T12:13:38Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:status:
+          f:loadBalancer:
+            f:ingress: {}
+      subresource: status
+spec:
+  rules:
+    - host: draftable-test.worley.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: apish
+                port:
+                  number: 80
+status:
+  loadBalancer:
+    ingress:
+      - ip: 10.50.194.157
