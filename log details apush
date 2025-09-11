@@ -1,0 +1,807 @@
+ser [ ~ ]$ kubectl get pods -n default
+NAME                                                   READY   STATUS      RESTARTS      AGE
+apish-57ff56bc65-s29bt                                 1/1     Running     1 (20m ago)   59m
+dll-source                                             0/1     Completed   0             2d12h
+node-debugger-aks-workload-36960524-vmss000018-rkjg4   0/1     Completed   0             85d
+rabbitmq-88c697f99-48zx2                               1/1     Running     0             3d15h
+rabbitmq-seed-definitions-h9bgx                        0/1     Completed   0             22d
+azureuser [ ~ ]$ kubectl logs apish-57ff56bc65-s29bt -n default
+########################################################################
+###                Draftable API Self-hosted Launcher                ###
+########################################################################
+
+[Setup] Checking /srv/draftable is mounted ... 
+[Setup] Setting /srv/draftable permissions ...
+[Setup] Checking for existing PostgreSQL cluster ...
+[Setup] Updating PostgreSQL configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: postgresql_server_config_dir
+    Function: file.directory
+        Name: /etc/postgresql/12/main
+      Result: True
+     Comment: 
+     Started: 07:01:45.363655
+    Duration: 2.822 ms
+     Changes:   
+              ----------
+              /etc/postgresql/12/main:
+                  ----------
+                  directory:
+                      new
+----------
+          ID: postgresql_server_hba_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_hba.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_hba.conf updated
+     Started: 07:01:45.366745
+    Duration: 15.039 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_ident_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_ident.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_ident.conf updated
+     Started: 07:01:46.571643
+    Duration: 13.136 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_config_main_file
+    Function: file.managed
+        Name: /etc/postgresql/12/main/postgresql.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/postgresql.conf updated
+     Started: 07:01:46.776316
+    Duration: 69.825 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0644
+              user:
+                  postgres
+----------
+          ID: postgresql_server_service
+    Function: service.running
+        Name: postgresql
+      Result: True
+     Comment: Service restarted
+     Started: 07:01:49.670026
+    Duration: 2593.261 ms
+     Changes:   
+              ----------
+              postgresql:
+                  True
+
+Summary for local
+-------------
+Succeeded: 12 (changed=5)
+Failed:     0
+-------------
+Total states run:     12
+Total run time:    4.770 s
+
+[Setup] Starting Redis ...
+Starting redis-server: redis-server.
+[Setup] Updating Draftable database ...
+local:
+----------
+          ID: draftable_db_migrate
+    Function: cmd.run
+        Name: /opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color
+      Result: True
+     Comment: Command "/opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color" run
+     Started: 07:01:54.613295
+    Duration: 6493.257 ms
+     Changes:   
+              ----------
+              pid:
+                  325
+              retcode:
+                  0
+              stderr:
+              stdout:
+                  Operations to perform:
+                    Apply all migrations: admin, api, auth, authtoken, contenttypes, dynamic_preferences, rest_framework_tracking, reversion, sessions, trench
+                  Running migrations:
+                    No migrations to apply.
+
+Summary for local
+------------
+Succeeded: 1 (changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time:   6.493 s
+
+[Setup] Generating self-signed certificate ...
+[Setup] Updating font cache ...
+[Setup] Updating RabbitMQ configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: rabbitmq_user_guest_remove
+    Function: rabbitmq_user.absent
+        Name: guest
+      Result: True
+     Comment: The user 'guest' was removed.
+     Started: 07:02:18.813836
+    Duration: 1571.261 ms
+     Changes:   
+              ----------
+              name:
+                  ----------
+                  new:
+                  old:
+                      guest
+----------
+          ID: rabbitmq_user_draftable_create
+    Function: rabbitmq_user.present
+        Name: draftable
+      Result: True
+     Comment: 'draftable' was configured.
+     Started: 07:02:20.386156
+    Duration: 4287.315 ms
+     Changes:   
+              ----------
+              perms:
+                  ----------
+                  new:
+                      ----------
+                      /:
+                          ----------
+                          configure:
+                              .*
+                          read:
+                              .*
+                          write:
+                              .*
+              tags:
+                  ----------
+                  new:
+                      - administrator
+                  old:
+              user:
+                  ----------
+                  new:
+                      draftable
+                  old:
+
+Summary for local
+-------------
+Succeeded: 19 (changed=2)
+Failed:     0
+-------------
+Total states run:     19
+Total run time:   20.377 s
+
+[CFG] Applying cgroups configuration ...
+/usr/sbin/cgconfigparser; error loading /etc/cgconfig.conf: Cgroup is not mounted
+[SVC] Starting PostgreSQL ...
+ * Starting PostgreSQL 12 database server
+   ...done.
+[SVC] Starting EPMD ...
+[SVC] Starting RabbitMQ ...
+ * Starting RabbitMQ Messaging Server rabbitmq-server
+ * RabbitMQ Messaging Server already running
+   ...done.
+[SVC] Starting Redis ...
+Starting redis-server: redis-server.
+[SVC] Starting Memcached ...
+Starting memcached: memcached.
+[SVC] Starting Nginx ...
+ * Starting nginx nginx
+   ...done.
+[SVC] Starting Supervisor ...
+Starting supervisor: supervisord.
+
+[SVC] Container startup complete!
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ 
+azureuser [ ~ ]$ kubectl get pvc draftable-data
+NAME             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+draftable-data   Bound    pvc-ba8f9153-d048-4cd0-9a8a-0476d6971ddb   20Gi       RWO            default        <unset>                 3d15h
+azureuser [ ~ ]$ kubectl describe pvc draftable-data
+Name:          draftable-data
+Namespace:     default
+StorageClass:  default
+Status:        Bound
+Volume:        pvc-ba8f9153-d048-4cd0-9a8a-0476d6971ddb
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+               volume.beta.kubernetes.io/storage-provisioner: disk.csi.azure.com
+               volume.kubernetes.io/selected-node: aks-ds1-79017413-vmss000002
+               volume.kubernetes.io/storage-provisioner: disk.csi.azure.com
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      20Gi
+Access Modes:  RWO
+VolumeMode:    Filesystem
+Used By:       apish-57ff56bc65-s29bt
+Events:        <none>
+azureuser [ ~ ]$ kubectl exec -it apish-57ff56bc65-s29bt -- /bin/bash
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# touch /srv/draftable/testfile
+root@apish-57ff56bc65-s29bt:/# ls -l /srv/draftable/testfile
+-rw-r--r-- 1 root root 0 Sep 11 07:25 /srv/draftable/testfile
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# 
+root@apish-57ff56bc65-s29bt:/# exit
+exit
+azureuser [ ~ ]$ kubectl get pods -n default
+NAME                                                   READY   STATUS      RESTARTS      AGE
+apish-57ff56bc65-s29bt                                 1/1     Running     1 (26m ago)   65m
+dll-source                                             0/1     Completed   0             2d12h
+node-debugger-aks-workload-36960524-vmss000018-rkjg4   0/1     Completed   0             85d
+rabbitmq-88c697f99-48zx2                               1/1     Running     0             3d15h
+rabbitmq-seed-definitions-h9bgx                        0/1     Completed   0             22d
+azureuser [ ~ ]$ kubectl exec -it apish-57ff56bc65-s29bt -- nc -zv rabbitmq 5672
+ERRO[0000] exec failed: unable to start container process: exec: "nc": executable file not found in $PATH 
+command terminated with exit code 255
+azureuser [ ~ ]$ kubectl describe pod apish-57ff56bc65-s29bt -n default
+Name:             apish-57ff56bc65-s29bt
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             aks-sysbox-36072916-vmss00000g/10.50.202.128
+Start Time:       Thu, 11 Sep 2025 06:22:19 +0000
+Labels:           app=apish
+                  pod-template-hash=57ff56bc65
+Annotations:      kubectl.kubernetes.io/restartedAt: 2025-09-11T06:22:18Z
+Status:           Running
+IP:               10.50.202.162
+IPs:
+  IP:           10.50.202.162
+Controlled By:  ReplicaSet/apish-57ff56bc65
+Containers:
+  apish:
+    Container ID:   cri-o://c8fb106696bda5384e37684fdb62e67c3a9599a49a7d580d9b5078d4c5b4cf74
+    Image:          sgsin01acr01.azurecr.io/draftable/apish:latest
+    Image ID:       sgsin01acr01.azurecr.io/draftable/apish@sha256:7763431918694a40f6527c641bd8e6e405ff9dfee3d713ba5ab8e3c17911cfb1
+    Port:           80/TCP
+    Host Port:      0/TCP
+    State:          Running
+      Started:      Thu, 11 Sep 2025 07:01:40 +0000
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    137
+      Started:      Thu, 11 Sep 2025 06:24:46 +0000
+      Finished:     Thu, 11 Sep 2025 07:01:38 +0000
+    Ready:          True
+    Restart Count:  1
+    Limits:
+      cpu:     2
+      memory:  2Gi
+    Requests:
+      cpu:        1
+      memory:     1Gi
+    Environment:  <none>
+    Mounts:
+      /etc/nginx/sites-enabled/draftable from nginx-draftable (rw,path="draftable")
+      /srv/draftable from draftable-data (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-6bbqj (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  draftable-data:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  draftable-data
+    ReadOnly:   false
+  nginx-draftable:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      apish-nginx-draftable
+    Optional:  false
+  kube-api-access-6bbqj:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/memory-pressure:NoSchedule op=Exists
+                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason   Age                From     Message
+  ----    ------   ----               ----     -------
+  Normal  Pulling  27m (x2 over 64m)  kubelet  Pulling image "sgsin01acr01.azurecr.io/draftable/apish:latest"
+  Normal  Pulled   27m                kubelet  Successfully pulled image "sgsin01acr01.azurecr.io/draftable/apish:latest" in 1.028s (1.028s including waiting). Image size: 4315144623 bytes.
+  Normal  Created  27m (x2 over 64m)  kubelet  Created container: apish
+  Normal  Started  27m (x2 over 64m)  kubelet  Started container apish
+azureuser [ ~ ]$ kubectl logs -f apish-57ff56bc65-s29bt
+########################################################################
+###                Draftable API Self-hosted Launcher                ###
+########################################################################
+
+[Setup] Checking /srv/draftable is mounted ... 
+[Setup] Setting /srv/draftable permissions ...
+[Setup] Checking for existing PostgreSQL cluster ...
+[Setup] Updating PostgreSQL configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: postgresql_server_config_dir
+    Function: file.directory
+        Name: /etc/postgresql/12/main
+      Result: True
+     Comment: 
+     Started: 07:01:45.363655
+    Duration: 2.822 ms
+     Changes:   
+              ----------
+              /etc/postgresql/12/main:
+                  ----------
+                  directory:
+                      new
+----------
+          ID: postgresql_server_hba_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_hba.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_hba.conf updated
+     Started: 07:01:45.366745
+    Duration: 15.039 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_ident_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_ident.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_ident.conf updated
+     Started: 07:01:46.571643
+    Duration: 13.136 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_config_main_file
+    Function: file.managed
+        Name: /etc/postgresql/12/main/postgresql.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/postgresql.conf updated
+     Started: 07:01:46.776316
+    Duration: 69.825 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0644
+              user:
+                  postgres
+----------
+          ID: postgresql_server_service
+    Function: service.running
+        Name: postgresql
+      Result: True
+     Comment: Service restarted
+     Started: 07:01:49.670026
+    Duration: 2593.261 ms
+     Changes:   
+              ----------
+              postgresql:
+                  True
+
+Summary for local
+-------------
+Succeeded: 12 (changed=5)
+Failed:     0
+-------------
+Total states run:     12
+Total run time:    4.770 s
+
+[Setup] Starting Redis ...
+Starting redis-server: redis-server.
+[Setup] Updating Draftable database ...
+local:
+----------
+          ID: draftable_db_migrate
+    Function: cmd.run
+        Name: /opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color
+      Result: True
+     Comment: Command "/opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color" run
+     Started: 07:01:54.613295
+    Duration: 6493.257 ms
+     Changes:   
+              ----------
+              pid:
+                  325
+              retcode:
+                  0
+              stderr:
+              stdout:
+                  Operations to perform:
+                    Apply all migrations: admin, api, auth, authtoken, contenttypes, dynamic_preferences, rest_framework_tracking, reversion, sessions, trench
+                  Running migrations:
+                    No migrations to apply.
+
+Summary for local
+------------
+Succeeded: 1 (changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time:   6.493 s
+
+[Setup] Generating self-signed certificate ...
+[Setup] Updating font cache ...
+[Setup] Updating RabbitMQ configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: rabbitmq_user_guest_remove
+    Function: rabbitmq_user.absent
+        Name: guest
+      Result: True
+     Comment: The user 'guest' was removed.
+     Started: 07:02:18.813836
+    Duration: 1571.261 ms
+     Changes:   
+              ----------
+              name:
+                  ----------
+                  new:
+                  old:
+                      guest
+----------
+          ID: rabbitmq_user_draftable_create
+    Function: rabbitmq_user.present
+        Name: draftable
+      Result: True
+     Comment: 'draftable' was configured.
+     Started: 07:02:20.386156
+    Duration: 4287.315 ms
+     Changes:   
+              ----------
+              perms:
+                  ----------
+                  new:
+                      ----------
+                      /:
+                          ----------
+                          configure:
+                              .*
+                          read:
+                              .*
+                          write:
+                              .*
+              tags:
+                  ----------
+                  new:
+                      - administrator
+                  old:
+              user:
+                  ----------
+                  new:
+                      draftable
+                  old:
+
+Summary for local
+-------------
+Succeeded: 19 (changed=2)
+Failed:     0
+-------------
+Total states run:     19
+Total run time:   20.377 s
+
+[CFG] Applying cgroups configuration ...
+/usr/sbin/cgconfigparser; error loading /etc/cgconfig.conf: Cgroup is not mounted
+[SVC] Starting PostgreSQL ...
+ * Starting PostgreSQL 12 database server
+   ...done.
+[SVC] Starting EPMD ...
+[SVC] Starting RabbitMQ ...
+ * Starting RabbitMQ Messaging Server rabbitmq-server
+ * RabbitMQ Messaging Server already running
+   ...done.
+[SVC] Starting Redis ...
+Starting redis-server: redis-server.
+[SVC] Starting Memcached ...
+Starting memcached: memcached.
+[SVC] Starting Nginx ...
+ * Starting nginx nginx
+   ...done.
+[SVC] Starting Supervisor ...
+Starting supervisor: supervisord.
+
+[SVC] Container startup complete!
+
+
+
+^Cazureuser [ ~ ]$ kubectl logs -f apish-57ff56bc65-s29bt -n default
+########################################################################
+###                Draftable API Self-hosted Launcher                ###
+########################################################################
+
+[Setup] Checking /srv/draftable is mounted ... 
+[Setup] Setting /srv/draftable permissions ...
+[Setup] Checking for existing PostgreSQL cluster ...
+[Setup] Updating PostgreSQL configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: postgresql_server_config_dir
+    Function: file.directory
+        Name: /etc/postgresql/12/main
+      Result: True
+     Comment: 
+     Started: 07:33:34.454728
+    Duration: 2.483 ms
+     Changes:   
+              ----------
+              /etc/postgresql/12/main:
+                  ----------
+                  directory:
+                      new
+----------
+          ID: postgresql_server_hba_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_hba.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_hba.conf updated
+     Started: 07:33:34.457458
+    Duration: 15.157 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_ident_config
+    Function: file.managed
+        Name: /etc/postgresql/12/main/pg_ident.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/pg_ident.conf updated
+     Started: 07:33:35.639641
+    Duration: 14.518 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0640
+              user:
+                  postgres
+----------
+          ID: postgresql_server_config_main_file
+    Function: file.managed
+        Name: /etc/postgresql/12/main/postgresql.conf
+      Result: True
+     Comment: File /etc/postgresql/12/main/postgresql.conf updated
+     Started: 07:33:35.863624
+    Duration: 72.585 ms
+     Changes:   
+              ----------
+              diff:
+                  New file
+              group:
+                  postgres
+              mode:
+                  0644
+              user:
+                  postgres
+----------
+          ID: postgresql_server_service
+    Function: service.running
+        Name: postgresql
+      Result: True
+     Comment: Service restarted
+     Started: 07:33:38.984198
+    Duration: 2475.188 ms
+     Changes:   
+              ----------
+              postgresql:
+                  True
+
+Summary for local
+-------------
+Succeeded: 12 (changed=5)
+Failed:     0
+-------------
+Total states run:     12
+Total run time:    4.636 s
+
+[Setup] Starting Redis ...
+Starting redis-server: redis-server.
+[Setup] Updating Draftable database ...
+local:
+----------
+          ID: draftable_db_migrate
+    Function: cmd.run
+        Name: /opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color
+      Result: True
+     Comment: Command "/opt/draftable/venv/bin/python /opt/draftable/frontend/web/manage.py migrate --noinput --no-color" run
+     Started: 07:33:43.735708
+    Duration: 6386.493 ms
+     Changes:   
+              ----------
+              pid:
+                  325
+              retcode:
+                  0
+              stderr:
+              stdout:
+                  Operations to perform:
+                    Apply all migrations: admin, api, auth, authtoken, contenttypes, dynamic_preferences, rest_framework_tracking, reversion, sessions, trench
+                  Running migrations:
+                    No migrations to apply.
+
+Summary for local
+------------
+Succeeded: 1 (changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time:   6.386 s
+
+[Setup] Generating self-signed certificate ...
+[Setup] Updating font cache ...
+[Setup] Updating RabbitMQ configuration ...
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] stdout: Too many arguments.
+[ERROR   ] retcode: 1
+[ERROR   ] Command 'runlevel' failed with return code: 1
+[ERROR   ] output: Too many arguments.
+local:
+----------
+          ID: rabbitmq_user_guest_remove
+    Function: rabbitmq_user.absent
+        Name: guest
+      Result: True
+     Comment: The user 'guest' was removed.
+     Started: 07:34:08.314638
+    Duration: 1407.565 ms
+     Changes:   
+              ----------
+              name:
+                  ----------
+                  new:
+                  old:
+                      guest
+----------
+          ID: rabbitmq_user_draftable_create
+    Function: rabbitmq_user.present
+        Name: draftable
+      Result: True
+     Comment: 'draftable' was configured.
+     Started: 07:34:09.722911
+    Duration: 4457.746 ms
+     Changes:   
+              ----------
+              perms:
+                  ----------
+                  new:
+                      ----------
+                      /:
+                          ----------
+                          configure:
+                              .*
+                          read:
+                              .*
+                          write:
+                              .*
+              tags:
+                  ----------
+                  new:
+                      - administrator
+                  old:
+              user:
+                  ----------
+                  new:
+                      draftable
+                  old:
+
+Summary for local
+-------------
+Succeeded: 19 (changed=2)
+Failed:     0
+-------------
+Total states run:     19
+Total run time:   20.698 s
+
+[CFG] Applying cgroups configuration ...
+/usr/sbin/cgconfigparser; error loading /etc/cgconfig.conf: Cgroup is not mounted
+[SVC] Starting PostgreSQL ...
+ * Starting PostgreSQL 12 database server
+   ...done.
+[SVC] Starting EPMD ...
+[SVC] Starting RabbitMQ ...
+ * Starting RabbitMQ Messaging Server rabbitmq-server
+ * RabbitMQ Messaging Server already running
+   ...done.
+[SVC] Starting Redis ...
+Starting redis-server: redis-server.
+[SVC] Starting Memcached ...
+Starting memcached: memcached.
+[SVC] Starting Nginx ...
+ * Starting nginx nginx
+   ...done.
+[SVC] Starting Supervisor ...
+Starting supervisor: supervisord.
+
+[SVC] Container startup complete!
